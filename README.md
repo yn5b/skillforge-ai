@@ -1,6 +1,8 @@
 # SkillForge AI 🛠️
 
-![Logo](./الصورة_1751826877082.png)
+<p align="center">
+  <img src="./image_1751826877082.png" alt="SkillForge AI Logo" width="200">
+</p>
 
 **SkillForge AI** is an interactive educational platform powered by **Streamlit** and **AI**, designed to help you learn a variety of skills through hands-on exercises.
 
