@@ -7,7 +7,7 @@ Usage:
 import streamlit as st
 import openai
 
-openai.api_key = "<YOUR_OPENAI_KEY>"
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 st.set_page_config(page_title="SkillForge AI")
 st.title("SkillForge AI – Learn AI Skills")
