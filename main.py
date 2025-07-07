@@ -1,5 +1,5 @@
 """
-SkillForge AI – Streamlit app for learning AI skills.
+SkillForge AI – Streamlit app for learning skills with AI.
 Usage:
     pip install -r requirements.txt
     streamlit run main.py
@@ -10,7 +10,7 @@ import openai
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 st.set_page_config(page_title="SkillForge AI")
-st.title("SkillForge AI – Learn AI Skills")
+st.title("SkillForge AI – Learn Skills with AI")
 st.write("Enter input and generate AI-powered output.")
 
 user_input = st.text_input("Your input")
