@@ -1,4 +1,4 @@
-![Skilvyn – Master Anything. Effortlessly.](assets/skilvyn_brand.png)
+![Skilvyn – Master Anything. Effortlessly.](assets/background-removed-transparent-1751916129540.png)
 
 # Skilvyn  
 **Master Anything. Effortlessly.**
