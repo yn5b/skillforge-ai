@@ -1,12 +1,12 @@
 import streamlit as st
 import openai
 import time
-import openai.error  # ← هنا استورد الاستثناءات
+import openai.error  # ← here we import exceptions
 
 # Load your OpenAI API key
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# 1. عرّف الدالة بعد الاستيرادات
+# 1. Define the learning-path generator
 def generate_learning_path(name, level, minutes, goal):
     system_prompt = "You are a learning coach AI."
     user_prompt = (
@@ -24,34 +24,33 @@ def generate_learning_path(name, level, minutes, goal):
         )
         return resp.choices[0].message.content
     except openai.error.RateLimitError:
-        # عند تجاوز الحد، انتظر ثم أعد المحاولة
         time.sleep(5)
         return None
 
-# 2. شاشة الـ Onboarding Wizard
+# 2. Onboarding Wizard
 if "setup_done" not in st.session_state:
     st.title("Welcome to Skilvyn")
     name    = st.text_input("Your name")
-    level   = st.selectbox("Your AI skill level", ["Beginner","Intermediate","Advanced"])
+    level   = st.selectbox("Your AI skill level", ["Beginner", "Intermediate", "Advanced"])
     minutes = st.slider("Minutes per day", 10, 120, 30)
     goal    = st.text_input("Your learning goal")
 
     if st.button("Create my 7-day plan") and name and goal:
         plan = generate_learning_path(name, level, minutes, goal)
         if plan is None:
-            st.error("⚠️ Hit the OpenAI rate limit. Please wait a moment and try again.")
+            st.error("⚠️ Rate limit hit. Please wait and try again.")
         else:
             st.session_state["daily_plan"] = plan
             st.session_state["setup_done"]  = True
             st.experimental_rerun()
     st.stop()
 
-# 3. بعد الإعداد: عرض الخطة في الشريط الجانبي
+# 3. After onboarding: show the plan in the sidebar
 st.sidebar.header("My 7-Day Plan")
 st.sidebar.markdown(st.session_state["daily_plan"])
 
-# 4. إعداد الصفحة والـ Modules
-st.set_page_config(page_title="SkillForge AI", layout="wide")
+# 4. Page setup & Modules
+st.set_page_config(page_title="Skilvyn", layout="wide")
 st.title("Skilvyn – Your AI Skills Classroom")
 
 modules = [
@@ -61,7 +60,7 @@ modules = [
 ]
 selected_module = st.sidebar.selectbox("Choose a module", modules)
 
-# 5. إنشاء تبويبات لكل وحدة: درس، تمرين، أمثلة
+# 5. Tabs: Lesson, Exercise, Examples
 tabs = st.tabs(["Lesson", "Exercise", "Examples"])
 
 with tabs[0]:
@@ -84,7 +83,7 @@ with tabs[1]:
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_input}
+                    {"role": "user",   "content": user_input}
                 ],
                 temperature=0.7,
             )
@@ -107,4 +106,3 @@ with tabs[2]:
         3. Tip 2: Provide context…  
         4. Tip 3: Specify the desired format…
         """)
-```0
