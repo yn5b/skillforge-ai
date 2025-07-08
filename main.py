@@ -1,60 +1,40 @@
-import streamlit as st
-import openai
+import streamlit as st import openai
 
-# Load OpenAI API key from Streamlit secrets
+Load API key
+
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# 1. Onboarding Wizard – gather user information
-if "setup_done" not in st.session_state:
-    st.title("Welcome to Skilvyn")
-    user_name = st.text_input("Your name")
-    user_level = st.selectbox(
-        "Your AI skill level", ["Beginner", "Intermediate", "Advanced"]
-    )
-    daily_time = st.slider(
-        "How many minutes per day can you dedicate?", 10, 120, 30
-    )
-    learning_goal = st.text_input("What is your learning goal?")
-    
-    if st.button("Generate My 7-Day Plan") and user_name and learning_goal:
-        # Prepare prompts for GPT
-        system_message = "You are an AI learning coach."
-        user_message = (
-            f"Generate a personalized 7-day learning plan table for "
-            f"{user_name}, who is {user_level}, can spend {daily_time} minutes per day, "
-            f"and has the goal: {learning_goal}."
-        )
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_message},
-            ],
-            temperature=0.7,
-        )
-        # Store the generated plan and mark setup as done
-        st.session_state["daily_plan"] = response.choices[0].message.content
-        st.session_state["setup_done"] = True
-        st.experimental_rerun()
-    
-    # Stop execution here until onboarding is complete
-    st.stop()
+--- Onboarding Wizard: personalize a 7-day plan ---
 
-# 2. Display the generated 7-day plan in the sidebar
-st.sidebar.header("My 7-Day Learning Plan")
-st.sidebar.markdown(st.session_state["daily_plan"])
+def generate_learning_path(name, level, minutes, goal): system_prompt = "You are an AI learning coach." user_prompt = ( f"Student: {name}\n" f"Level: {level}\n" f"Daily time: {minutes} minutes\n" f"Goal: {goal}\n" "Generate a 7-day learning plan as a Markdown table: Day, Topic, Exercise prompt, Estimated time, Tip." ) resp = openai.ChatCompletion.create( model="gpt-3.5-turbo", messages=[ {"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt} ], temperature=0.7 ) return resp.choices[0].message.content
 
-# 3. Main AI Tutor chat interface
-st.header("AI Tutor Chat")
-user_query = st.text_input("Enter your question or prompt")
-if st.button("Send"):
-    chat_response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": "You are a helpful AI tutor."},
-            {"role": "user", "content": user_query},
-        ],
-        temperature=0.7,
-    )
-    st.subheader("Response")
-    st.write(chat_response.choices[0].message.content)
+if "setup_done" not in st.session_state: st.title("Welcome to Skilvyn") st.text("Let's personalize your 7-day AI learning plan.") name = st.text_input("Your name") level = st.selectbox("Your AI skill level", ["Beginner", "Intermediate", "Advanced"]) minutes = st.slider("Minutes per day", 10, 120, 30) goal = st.text_input("Your learning goal") if st.button("Create my 7-day plan") and name and goal: st.session_state["daily_plan"] = generate_learning_path(name, level, minutes, goal) st.session_state["setup_done"] = True st.experimental_rerun() st.stop()
+
+--- After onboarding: display plan and modules ---
+
+st.sidebar.header("My 7-Day Plan") st.sidebar.markdown(st.session_state["daily_plan"])
+
+Page configuration
+
+st.set_page_config(page_title="Skilvyn", layout="wide") st.title("Skilvyn – Your AI Skills Classroom")
+
+Modules selector
+
+modules = [ "Basics of Prompt Engineering", "Chain-of-Thought Prompts", "Few-Shot Prompting", ] selected = st.sidebar.selectbox("Choose a module", modules)
+
+Tabs for Lesson, Exercise, Examples
+
+tabs = st.tabs(["Lesson", "Exercise", "Examples"])
+
+with tabs[0]: st.header(f"Module: {selected}") if selected == "Basics of Prompt Engineering": st.markdown( """ What is a prompt?
+A prompt is the instruction you give to AI to guide its output.
+- Start with a clear role: “You are an AI instructor…”
+- Specify the task clearly: “Explain chain-of-thought prompting…” """ ) elif selected == "Chain-of-Thought Prompts": st.markdown( """ Chain-of-Thought
+A technique where the AI is guided step-by-step, e.g.:
+1. Define the problem
+2. Break it into sub-steps
+3. Ask for reasoning before answering """ ) else: st.markdown( """ Few-Shot Prompting
+Provide examples in the prompt to guide output:
+```
+Q: Translate English to French. A: Hello →
+
