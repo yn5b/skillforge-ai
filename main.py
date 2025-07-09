@@ -117,4 +117,3 @@ if st.button(ai_label("send the user's question to the tutor")) and user_input:
             st.write(tutor_resp.choices[0].message.content)
         except Exception:
             st.error("Failed to get a response from the AI tutor. Please try again.")
-```0
