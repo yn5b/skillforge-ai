@@ -152,7 +152,7 @@ def huggingface_chat(messages, temperature=0.7, max_tokens=512):
     API_URL = "https://api-inference.huggingface.co/models/EleutherAI/gpt-neo-2.7B"
     
     # Get API key from secrets
-    API_KEY = st.secrets.get("HUGGINGFACE_API_KEY", "")
+    API_KEY = st.secrets["HUGGINGFACE_API_KEY"]
     if not API_KEY:
         return None, "HuggingFace API key not found. Please add it to your secrets."
     
