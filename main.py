@@ -13,8 +13,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for ChatGPT-like interface (cached)
-st.markdown(get_cached_css(), unsafe_allow_html=True)
+# CSS will be loaded after function definition
 
 # Available skills
 SKILLS = ["Prompt Engineering"]
@@ -295,6 +294,9 @@ def generate_ai_response(system_content, user_input=None):
         
     return response, error
 
+# Load custom CSS
+st.markdown(get_cached_css(), unsafe_allow_html=True)
+
 # Main interface
 show_header()
 
@@ -441,7 +443,7 @@ if user_input and st.session_state.stage != "path_complete":
         st.session_state.chat_history.append({"role": "user", "content": user_input})
         
         tutor_content = f"""You are a specialized AI tutor. This is the unit: {unit['title']}. 
-    �    Objective: {unit['objective']}. Answer the user's question or continue the lesson interactively. 
+        Objective: {unit['objective']}. Answer the user's question or continue the lesson interactively. 
         At the end of your response, on a new line, write [status:pass] if the user is ready for the next unit, 
         or [status:stay] if they should remain in this unit."""
         
