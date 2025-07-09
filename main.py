@@ -151,6 +151,18 @@ def huggingface_chat(messages, temperature=0.7, max_tokens=512):
     """Chat function using HuggingFace DistilGPT-2 model"""
     API_URL = "https://api-inference.huggingface.co/models/distilgpt2"
     
+    # Validate messages format
+    if not isinstance(messages, list):
+        return None, "Error: messages must be a list"
+    
+    for i, msg in enumerate(messages):
+        if not isinstance(msg, dict):
+            return None, f"Error: message {i} is not a dictionary"
+        if "role" not in msg or "content" not in msg:
+            return None, f"Error: message {i} missing 'role' or 'content'"
+        if msg["role"] not in ["system", "user", "assistant"]:
+            return None, f"Error: message {i} has invalid role: {msg['role']}"
+    
     # Get API key from secrets
     API_KEY = st.secrets.get("HUGGINGFACE_API_KEY", "")
     if not API_KEY:
@@ -202,7 +214,18 @@ def huggingface_chat(messages, temperature=0.7, max_tokens=512):
         else:
             return None, "Invalid response format from API"
             
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Request Error: {str(e)}"
+        
+        # Print detailed error information
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"HTTP Status: {e.response.status_code}")
+            print(f"HTTP Body: {e.response.text}")
+            error_msg += f" | Status: {e.response.status_code} | Body: {e.response.text[:200]}"
+        
+        return None, error_msg
     except Exception as e:
+        print(f"General Exception: {str(e)}")
         return None, f"Connection Error: {str(e)}"
 
 def show_header():
