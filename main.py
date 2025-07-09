@@ -21,23 +21,24 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-def flan_t5_chat(messages, temperature=0.7, max_tokens=256):
+def falcon_chat(messages, temperature=0.7, max_tokens=256):
     HF_TOKEN = st.secrets.get("HF_API_KEY", "")
-    API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-base"
+    API_URL = "https://api-inference.huggingface.co/models/tiiuae/falcon-7b-instruct"
     headers = {
         "Authorization": f"Bearer {HF_TOKEN}",
         "Content-Type": "application/json"
     }
 
+    # Falcon تفهم التعليمات بشكل جيد على هيئة محادثة بشرية
     prompt = ""
     for msg in messages:
         if msg["role"] == "system":
-            prompt += f"Instruction: {msg['content']}\n"
+            prompt += f"[System] {msg['content']}\n"
         elif msg["role"] == "user":
-            prompt += f"User: {msg['content']}\n"
+            prompt += f"[User] {msg['content']}\n"
         elif msg["role"] == "assistant":
-            prompt += f"Assistant: {msg['content']}\n"
-    prompt += "Assistant:"
+            prompt += f"[Assistant] {msg['content']}\n"
+    prompt += "[Assistant]"
 
     payload = {
         "inputs": prompt,
@@ -58,7 +59,8 @@ def flan_t5_chat(messages, temperature=0.7, max_tokens=256):
         if isinstance(result, dict) and "error" in result:
             return None, f"[AI Error]: {result['error']}"
         if isinstance(result, list) and 'generated_text' in result[0]:
-            return result[0]['generated_text'].split("Assistant:")[-1].strip(), ""
+            # Falcon sometimes returns the entire conversation after '[Assistant]'
+            return result[0]['generated_text'].split("[Assistant]")[-1].strip(), ""
         return str(result), ""
     except Exception as e:
         return None, f"[Connection Error]: {e}"
@@ -99,7 +101,7 @@ if st.session_state.stage == "welcome":
                 "Base your greeting on the latest conversation context."
             )
         }
-        assistant_reply, error = flan_t5_chat([system_prompt])
+        assistant_reply, error = falcon_chat([system_prompt])
         if error or assistant_reply is None or not assistant_reply.strip():
             st.session_state["ai_error"] = error or "AI did not return a welcome message. Please check your API key or try again later."
         else:
@@ -117,7 +119,7 @@ if st.session_state.stage == "welcome":
                 "Politely ask for their email address. Address the user by their chosen name if possible."
             )
         }
-        assistant_reply, error = flan_t5_chat(st.session_state.chat_history + [system_prompt])
+        assistant_reply, error = falcon_chat(st.session_state.chat_history + [system_prompt])
         if error or assistant_reply is None or not assistant_reply.strip():
             st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
         else:
@@ -135,7 +137,7 @@ elif st.session_state.stage == "ask_info":
                 "Politely ask the user for their date of birth (format: YYYY-MM-DD)."
             )
         }
-        assistant_reply, error = flan_t5_chat(st.session_state.chat_history + [system_prompt])
+        assistant_reply, error = falcon_chat(st.session_state.chat_history + [system_prompt])
         if error or assistant_reply is None or not assistant_reply.strip():
             st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
         else:
@@ -154,7 +156,7 @@ elif st.session_state.stage == "choose_skill":
                 "Ask them to confirm if they want to start learning Prompt Engineering."
             )
         }
-        assistant_reply, error = flan_t5_chat(st.session_state.chat_history + [system_prompt])
+        assistant_reply, error = falcon_chat(st.session_state.chat_history + [system_prompt])
         if error or assistant_reply is None or not assistant_reply.strip():
             st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
         else:
@@ -174,7 +176,7 @@ elif st.session_state.stage == "ask_level":
                     "(beginner/intermediate/advanced or a short sentence about themselves)."
                 )
             }
-            assistant_reply, error = flan_t5_chat(st.session_state.chat_history + [system_prompt])
+            assistant_reply, error = falcon_chat(st.session_state.chat_history + [system_prompt])
             if error or assistant_reply is None or not assistant_reply.strip():
                 st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
             else:
@@ -186,7 +188,7 @@ elif st.session_state.stage == "ask_level":
                 "role": "system",
                 "content": "Thank the user and let them know more skills will be added soon."
             }
-            assistant_reply, error = flan_t5_chat(st.session_state.chat_history + [sorry_prompt])
+            assistant_reply, error = falcon_chat(st.session_state.chat_history + [sorry_prompt])
             if error or assistant_reply is None or not assistant_reply.strip():
                 st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
             else:
@@ -207,7 +209,7 @@ elif st.session_state.stage == "generate_path":
                 "Respond with valid JSON: [{\"title\":..., \"objective\":..., \"welcome\":...}, ...]"
             )
         }
-        plan_json, error = flan_t5_chat(st.session_state.chat_history + [plan_prompt])
+        plan_json, error = falcon_chat(st.session_state.chat_history + [plan_prompt])
         import json
         try:
             learning_path = json.loads(plan_json)
@@ -222,7 +224,7 @@ elif st.session_state.stage == "generate_path":
                     "Invite them to start learning and chatting."
                 )
             }
-            assistant_reply, error = flan_t5_chat(st.session_state.chat_history + [unit_prompt])
+            assistant_reply, error = falcon_chat(st.session_state.chat_history + [unit_prompt])
             if error or assistant_reply is None or not assistant_reply.strip():
                 st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
             else:
@@ -245,7 +247,7 @@ elif st.session_state.stage == "in_unit":
                 "At the end, on a new line, write [status:pass] if the user is ready for the next unit, or [status:stay] if they should stay in this unit."
             )
         }
-        assistant_reply, error = flan_t5_chat(st.session_state.chat_history + [tutor_prompt])
+        assistant_reply, error = falcon_chat(st.session_state.chat_history + [tutor_prompt])
         if error or assistant_reply is None or not assistant_reply.strip():
             st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
         else:
@@ -262,7 +264,7 @@ elif st.session_state.stage == "in_unit":
                             f"{next_unit['title']}. {next_unit['welcome']}"
                         )
                     }
-                    assistant_reply, error = flan_t5_chat(st.session_state.chat_history + [next_unit_prompt])
+                    assistant_reply, error = falcon_chat(st.session_state.chat_history + [next_unit_prompt])
                     if error or assistant_reply is None or not assistant_reply.strip():
                         st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
                     else:
@@ -274,7 +276,7 @@ elif st.session_state.stage == "in_unit":
                         "role": "system",
                         "content": "Congratulate the user for completing all units."
                     }
-                    assistant_reply, error = flan_t5_chat(st.session_state.chat_history + [complete_prompt])
+                    assistant_reply, error = falcon_chat(st.session_state.chat_history + [complete_prompt])
                     if error or assistant_reply is None or not assistant_reply.strip():
                         st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
                     else:
@@ -285,7 +287,7 @@ elif st.session_state.stage == "in_unit":
                     "role": "system",
                     "content": "Encourage the user to keep working on this unit until they're ready to move on."
                 }
-                assistant_reply, error = flan_t5_chat(st.session_state.chat_history + [encourage_prompt])
+                assistant_reply, error = falcon_chat(st.session_state.chat_history + [encourage_prompt])
                 if error or assistant_reply is None or not assistant_reply.strip():
                     st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
                 else:
