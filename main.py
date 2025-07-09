@@ -35,7 +35,7 @@ def ai_chat(messages, temperature=0.7, max_tokens=256):
         )
         return resp.choices[0].message.content.strip()
     except Exception as e:
-        return None  # Return None to signal failure
+        return f"AI error: {str(e)}"
 
 def assistant_reply(user_input=None):
     history = st.session_state.chat_history.copy()
@@ -181,8 +181,8 @@ elif st.session_state.stage == "generate_path":
             msg += f"\n\n{learning_path[0]['welcome']}"
             st.session_state.chat_history.append({"role": "assistant", "content": msg})
             st.experimental_rerun()
-        except Exception:
-            st.error("Sorry, there was an error processing the learning path. Please try again.")
+        except Exception as e:
+            st.error(f"Sorry, there was an error processing the learning path: {str(e)}")
             st.stop()
     st.stop()
 
