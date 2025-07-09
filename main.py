@@ -20,20 +20,14 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# --------- Flan-T5-Small HuggingFace API Wrapper ---------
 def flan_t5_chat(messages, temperature=0.7, max_tokens=256):
-    """
-    Calls Google Flan-T5-Small on HuggingFace Inference API to generate a reply.
-    Uses the chat history and current system prompt for context.
-    """
-    HF_TOKEN = st.secrets["HF_API_KEY"]
+    HF_TOKEN = st.secrets.get("HF_API_KEY", "")
     API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-small"
     headers = {
         "Authorization": f"Bearer {HF_TOKEN}",
         "Content-Type": "application/json"
     }
 
-    # Compose the prompt from the chat history
     prompt = ""
     for msg in messages:
         if msg["role"] == "system":
@@ -44,7 +38,6 @@ def flan_t5_chat(messages, temperature=0.7, max_tokens=256):
             prompt += f"Assistant: {msg['content']}\n"
     prompt += "Assistant:"
 
-    # API call
     payload = {
         "inputs": prompt,
         "parameters": {
@@ -55,11 +48,21 @@ def flan_t5_chat(messages, temperature=0.7, max_tokens=256):
     }
     try:
         response = requests.post(API_URL, headers=headers, json=payload, timeout=25)
-        result = response.json()
-        if isinstance(result, list) and 'generated_text' in result[0]:
+        # DEBUG: Show raw response for troubleshooting
+        # st.write("DEBUG RESPONSE TEXT:", response.text)
+
+        # If status code is not 200, show error
+        if response.status_code != 200:
+            return f"[Connection Error]: HuggingFace API returned status {response.status_code}: {response.text}"
+        try:
+            result = response.json()
+        except Exception as e:
+            return f"[Connection Error]: Could not decode JSON. Raw response: {response.text[:200]}"
+        # Huggingface may return dict with error
+        if isinstance(result, dict) and "error" in result:
+            return f"[AI Error]: {result['error']}"
+        elif isinstance(result, list) and 'generated_text' in result[0]:
             return result[0]['generated_text'].split("Assistant:")[-1].strip()
-        elif isinstance(result, dict) and "error" in result:
-            return "[AI Error]: " + result["error"]
         elif isinstance(result, list) and 'generated_text' in result[0]:
             return result[0]['generated_text']
         else:
@@ -73,8 +76,6 @@ def show_chat():
             st.chat_message("assistant").markdown(msg["content"])
         else:
             st.chat_message("user").markdown(msg["content"])
-
-# ---------- App Flow Logic ----------
 
 show_chat()
 
@@ -90,6 +91,9 @@ input_placeholder = {
 
 user_input = st.chat_input(input_placeholder)
 
+def fallback_welcome():
+    return "👋 Welcome to Skilvyn! (AI service is temporarily unavailable, but you can still use the app.)\nWhat name should I call you?"
+
 if st.session_state.stage == "welcome":
     if not st.session_state.chat_history:
         system_prompt = {
@@ -97,6 +101,9 @@ if st.session_state.stage == "welcome":
             "content": "You are a friendly AI learning assistant. Greet the user, introduce Skilvyn as an interactive AI-powered learning platform which generates everything via AI, and ask for the user's name or how they want to be addressed."
         }
         assistant_reply = flan_t5_chat([system_prompt])
+        # Always show welcome message, even if failed
+        if assistant_reply.startswith("[AI Error]") or assistant_reply.startswith("[Connection Error]"):
+            assistant_reply = fallback_welcome() + "\n\n" + assistant_reply
         st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
     if user_input:
         st.session_state.user_info["name"] = user_input.strip()
@@ -106,6 +113,8 @@ if st.session_state.stage == "welcome":
             "content": f"You are a friendly AI learning assistant. The user said their name is {user_input}. Politely ask them for their email address."
         }
         assistant_reply = flan_t5_chat(st.session_state.chat_history + [system_prompt])
+        if assistant_reply.startswith("[AI Error]") or assistant_reply.startswith("[Connection Error]"):
+            assistant_reply = "Can you give me your email address?" + "\n\n" + assistant_reply
         st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
         st.session_state.stage = "ask_info"
         st.experimental_rerun()
@@ -119,6 +128,8 @@ elif st.session_state.stage == "ask_info":
             "content": "Politely ask the user for their date of birth (format: YYYY-MM-DD)."
         }
         assistant_reply = flan_t5_chat(st.session_state.chat_history + [system_prompt])
+        if assistant_reply.startswith("[AI Error]") or assistant_reply.startswith("[Connection Error]"):
+            assistant_reply = "Can you give me your date of birth? (YYYY-MM-DD)" + "\n\n" + assistant_reply
         st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
         st.session_state.stage = "choose_skill"
         st.experimental_rerun()
@@ -132,6 +143,8 @@ elif st.session_state.stage == "choose_skill":
             "content": "Tell the user that currently only 'Prompt Engineering' is available to learn, and more skills will be added soon. Ask them to confirm if they want to start learning Prompt Engineering."
         }
         assistant_reply = flan_t5_chat(st.session_state.chat_history + [system_prompt])
+        if assistant_reply.startswith("[AI Error]") or assistant_reply.startswith("[Connection Error]"):
+            assistant_reply = "Currently we only have Prompt Engineering. Do you want to start learning it? (yes/no)" + "\n\n" + assistant_reply
         st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
         st.session_state.stage = "ask_level"
         st.experimental_rerun()
@@ -146,6 +159,8 @@ elif st.session_state.stage == "ask_level":
                 "content": "Ask the user to briefly describe their current experience level in Prompt Engineering (beginner/intermediate/advanced or a short sentence about themselves)."
             }
             assistant_reply = flan_t5_chat(st.session_state.chat_history + [system_prompt])
+            if assistant_reply.startswith("[AI Error]") or assistant_reply.startswith("[Connection Error]"):
+                assistant_reply = "Please describe your experience with Prompt Engineering." + "\n\n" + assistant_reply
             st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
             st.session_state.stage = "generate_path"
             st.experimental_rerun()
@@ -155,6 +170,8 @@ elif st.session_state.stage == "ask_level":
                 "content": "Thank the user and let them know more skills will be added soon."
             }
             assistant_reply = flan_t5_chat(st.session_state.chat_history + [sorry_prompt])
+            if assistant_reply.startswith("[AI Error]") or assistant_reply.startswith("[Connection Error]"):
+                assistant_reply = "Thank you for your interest! More skills will be added soon." + "\n\n" + assistant_reply
             st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
             st.session_state.stage = "welcome"
             st.experimental_rerun()
@@ -184,6 +201,8 @@ elif st.session_state.stage == "generate_path":
                 "content": f"Welcome the user to the first unit: {unit['title']}. {unit['welcome']} Invite them to start learning and chatting."
             }
             assistant_reply = flan_t5_chat(st.session_state.chat_history + [unit_prompt])
+            if assistant_reply.startswith("[AI Error]") or assistant_reply.startswith("[Connection Error]"):
+                assistant_reply = f"Let's start! **{unit['title']}**: {unit['welcome']}" + "\n\n" + assistant_reply
             st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
             st.experimental_rerun()
         except Exception:
@@ -204,6 +223,8 @@ elif st.session_state.stage == "in_unit":
             )
         }
         assistant_reply = flan_t5_chat(st.session_state.chat_history + [tutor_prompt])
+        if assistant_reply.startswith("[AI Error]") or assistant_reply.startswith("[Connection Error]"):
+            assistant_reply = "Let's continue! (AI service is temporarily unavailable)" + "\n\n" + assistant_reply
         st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
 
         if "[status:pass]" in assistant_reply:
@@ -215,6 +236,8 @@ elif st.session_state.stage == "in_unit":
                     "content": f"Congratulate the user for completing the previous unit and welcome them to the next unit: {next_unit['title']}. {next_unit['welcome']}"
                 }
                 assistant_reply = flan_t5_chat(st.session_state.chat_history + [next_unit_prompt])
+                if assistant_reply.startswith("[AI Error]") or assistant_reply.startswith("[Connection Error]"):
+                    assistant_reply = f"Next unit: **{next_unit['title']}** {next_unit['welcome']}" + "\n\n" + assistant_reply
                 st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
                 st.experimental_rerun()
             else:
@@ -224,6 +247,8 @@ elif st.session_state.stage == "in_unit":
                     "content": "Congratulate the user for completing all units."
                 }
                 assistant_reply = flan_t5_chat(st.session_state.chat_history + [complete_prompt])
+                if assistant_reply.startswith("[AI Error]") or assistant_reply.startswith("[Connection Error]"):
+                    assistant_reply = "🎉 Congratulations! You have completed the course." + "\n\n" + assistant_reply
                 st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
                 st.experimental_rerun()
         elif "[status:stay]" in assistant_reply:
@@ -232,6 +257,8 @@ elif st.session_state.stage == "in_unit":
                 "content": "Encourage the user to keep working on this unit until they're ready to move on."
             }
             assistant_reply = flan_t5_chat(st.session_state.chat_history + [encourage_prompt])
+            if assistant_reply.startswith("[AI Error]") or assistant_reply.startswith("[Connection Error]"):
+                assistant_reply = "Keep working on this unit! (AI service is temporarily unavailable)" + "\n\n" + assistant_reply
             st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
             st.experimental_rerun()
 
