@@ -13,8 +13,67 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for ChatGPT-like interface
-st.markdown("""
+# Custom CSS for ChatGPT-like interface (cached)
+st.markdown(get_cached_css(), unsafe_allow_html=True)
+
+# Available skills
+SKILLS = ["Prompt Engineering"]
+
+# Initialize session state
+defaults = {
+    "chat_history": [],
+    "user_info": {},
+    "skills": SKILLS,
+    "selected_skill": None,
+    "skill_level": None,
+    "learning_path": [],
+    "current_unit": 0,
+    "stage": "welcome",
+    "ai_error": "",
+    "messages_count": 0,
+    "max_free_messages": 50,
+    "max_history_size": 20  # Limit chat history to last 20 messages
+}
+
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
+
+# Cache learning path to avoid recreating
+@st.cache_data
+def get_cached_learning_path():
+    return [
+        {
+            "title": "Introduction to Prompt Engineering",
+            "objective": "Understanding the fundamentals of prompt engineering and its importance",
+            "welcome": "Welcome to your prompt engineering learning journey! We'll start with the basics."
+        },
+        {
+            "title": "Writing Effective Prompts",
+            "objective": "Learn techniques for writing clear and specific prompts",
+            "welcome": "Now we'll learn how to write prompts that get the results you want."
+        },
+        {
+            "title": "Using Context in Prompts",
+            "objective": "Master the use of context to improve response quality",
+            "welcome": "We'll dive deep into how to use context to make your prompts more accurate."
+        },
+        {
+            "title": "Advanced Prompt Engineering Techniques",
+            "objective": "Learn advanced techniques like Chain of Thought",
+            "welcome": "Time to learn the advanced techniques that experts use."
+        },
+        {
+            "title": "Practical Applications and Projects",
+            "objective": "Apply what you've learned to real-world projects",
+            "welcome": "We'll conclude by applying everything you've learned to practical projects."
+        }
+    ]
+
+# Cache CSS to avoid reloading
+@st.cache_data
+def get_cached_css():
+    return """
 <style>
     .main-header {
         text-align: center;
@@ -87,29 +146,7 @@ st.markdown("""
     .current { background: #FF9800; }
     .locked { background: #ccc; }
 </style>
-""", unsafe_allow_html=True)
-
-# Available skills
-SKILLS = ["Prompt Engineering"]
-
-# Initialize session state
-defaults = {
-    "chat_history": [],
-    "user_info": {},
-    "skills": SKILLS,
-    "selected_skill": None,
-    "skill_level": None,
-    "learning_path": [],
-    "current_unit": 0,
-    "stage": "welcome",
-    "ai_error": "",
-    "messages_count": 0,
-    "max_free_messages": 50
-}
-
-for k, v in defaults.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
+"""
 
 def huggingface_chat(messages, temperature=0.7, max_tokens=512):
     """Chat function using HuggingFace GPT-Neo-2.7B model"""
@@ -224,10 +261,17 @@ def check_message_limit():
         return False
     return True
 
+def trim_chat_history():
+    """Keep only the last N messages to reduce memory usage"""
+    if len(st.session_state.chat_history) > st.session_state.max_history_size:
+        st.session_state.chat_history = st.session_state.chat_history[-st.session_state.max_history_size:]
+
 def generate_ai_response(system_content, user_input=None):
-    """Generate AI response with error handling"""
+    """Generate AI response with error handling and performance monitoring"""
     if not check_message_limit():
         return None, "Message limit reached"
+    
+    start_time = time.time()
     
     messages = st.session_state.chat_history.copy()
     if user_input:
@@ -240,6 +284,14 @@ def generate_ai_response(system_content, user_input=None):
     
     if response:
         st.session_state.messages_count += 1
+        # Trim history after successful response
+        trim_chat_history()
+    
+    # Performance monitoring
+    end_time = time.time()
+    response_time = end_time - start_time
+    if response_time > 5:  # Log slow responses
+        st.toast(f"⚠️ Response took {response_time:.2f}s", icon="⏰")
         
     return response, error
 
@@ -365,34 +417,8 @@ if user_input and st.session_state.stage != "path_complete":
         st.session_state.skill_level = user_input.strip()
         st.session_state.chat_history.append({"role": "user", "content": user_input})
         
-        # Create a predefined learning path since JSON generation might be complex
-        learning_path = [
-            {
-                "title": "Introduction to Prompt Engineering",
-                "objective": "Understanding the fundamentals of prompt engineering and its importance",
-                "welcome": "Welcome to your prompt engineering learning journey! We'll start with the basics."
-            },
-            {
-                "title": "Writing Effective Prompts",
-                "objective": "Learn techniques for writing clear and specific prompts",
-                "welcome": "Now we'll learn how to write prompts that get the results you want."
-            },
-            {
-                "title": "Using Context in Prompts",
-                "objective": "Master the use of context to improve response quality",
-                "welcome": "We'll dive deep into how to use context to make your prompts more accurate."
-            },
-            {
-                "title": "Advanced Prompt Engineering Techniques",
-                "objective": "Learn advanced techniques like Chain of Thought",
-                "welcome": "Time to learn the advanced techniques that experts use."
-            },
-            {
-                "title": "Practical Applications and Projects",
-                "objective": "Apply what you've learned to real-world projects",
-                "welcome": "We'll conclude by applying everything you've learned to practical projects."
-            }
-        ]
+        # Create a predefined learning path (cached)
+        learning_path = get_cached_learning_path()
         
         st.session_state.learning_path = learning_path
         st.session_state.current_unit = 0
@@ -415,7 +441,7 @@ if user_input and st.session_state.stage != "path_complete":
         st.session_state.chat_history.append({"role": "user", "content": user_input})
         
         tutor_content = f"""You are a specialized AI tutor. This is the unit: {unit['title']}. 
-        Objective: {unit['objective']}. Answer the user's question or continue the lesson interactively. 
+    �    Objective: {unit['objective']}. Answer the user's question or continue the lesson interactively. 
         At the end of your response, on a new line, write [status:pass] if the user is ready for the next unit, 
         or [status:stay] if they should remain in this unit."""
         
@@ -473,3 +499,12 @@ if st.session_state.user_info:
             st.write(f"**Selected Skill:** {st.session_state.selected_skill}")
         
         st.write(f"**Messages Used:** {st.session_state.messages_count}/{st.session_state.max_free_messages}")
+        
+        # Performance info
+        st.subheader("📊 Performance")
+        st.write(f"**History Size:** {len(st.session_state.chat_history)}/{st.session_state.max_history_size}")
+        
+        # Clear history button for testing
+        if st.button("🧹 Clear Old History"):
+            trim_chat_history()
+            st.success("History trimmed!")
