@@ -23,7 +23,7 @@ for k, v in defaults.items():
 
 def flan_t5_chat(messages, temperature=0.7, max_tokens=256):
     HF_TOKEN = st.secrets.get("HF_API_KEY", "")
-    API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-small"
+    API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-base"
     headers = {
         "Authorization": f"Bearer {HF_TOKEN}",
         "Content-Type": "application/json"
@@ -48,7 +48,7 @@ def flan_t5_chat(messages, temperature=0.7, max_tokens=256):
         }
     }
     try:
-        response = requests.post(API_URL, headers=headers, json=payload, timeout=25)
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
         if response.status_code != 200:
             return None, f"[Connection Error]: Status {response.status_code}: {response.text[:200]}"
         try:
@@ -90,7 +90,6 @@ if user_input and st.session_state["ai_error"]:
 
 if st.session_state.stage == "welcome":
     if not st.session_state.chat_history:
-        # Always use an AI-generated welcome message (never hard-coded fallback).
         system_prompt = {
             "role": "system",
             "content": (
@@ -108,7 +107,6 @@ if st.session_state.stage == "welcome":
 
     if st.session_state["ai_error"]:
         st.error(st.session_state["ai_error"])
-    # Only accept input if welcome was successfully generated
     elif user_input:
         st.session_state.user_info["name"] = user_input.strip()
         st.session_state.chat_history.append({"role": "user", "content": user_input})
