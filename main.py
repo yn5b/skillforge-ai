@@ -2,10 +2,8 @@ import streamlit as st
 
 st.set_page_config(page_title="Skilvyn Tutor", layout="wide")
 
-# Only one skill for now
 SKILLS = ["Prompt Engineering"]
 
-# Default session state
 defaults = {
     "chat_history": [],
     "user_info": {},
@@ -15,26 +13,18 @@ defaults = {
     "learning_path": [],
     "current_unit": 0,
     "unit_passed": False,
-    "stage": "welcome"  # Stages: welcome, ask_info, choose_skill, ask_level, generate_path, in_unit, path_complete
+    "stage": "welcome"
 }
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# --------- Llama 2 7B API Wrapper ---------
 def llama2_chat(messages, temperature=0.7, max_tokens=256):
-    """
-    Replace this stub with your Llama 2 7B API call.
-    The messages argument is a list of dicts: [{"role": "system", "content": ...}, ...]
-    Return a string reply.
-    """
-    # ---- Example: Replace with your actual endpoint or inference call ----
-    # For demonstration, just echo the last user message:
+    # Stub for Llama 2 7B chat
     for msg in reversed(messages):
         if msg["role"] == "user":
             return f"(LLAMA 2 7B STUB) {msg['content']}"
     return "(LLAMA 2 7B STUB) Hello!"
-    # ----------------------------------------------------------------------
 
 def assistant_reply(user_input=None):
     history = st.session_state.chat_history.copy()
@@ -73,8 +63,7 @@ if st.session_state.stage == "welcome":
         ])
         st.session_state.chat_history.append({"role": "assistant", "content": ask})
         st.session_state.stage = "ask_info"
-        st.experimental_rerun()
-    st.stop()
+        st.stop()
 
 # Stage 2: Collect personal information
 elif st.session_state.stage == "ask_info":
@@ -89,8 +78,7 @@ elif st.session_state.stage == "ask_info":
         ])
         st.session_state.chat_history.append({"role": "assistant", "content": ask})
         st.session_state.stage = "choose_skill"
-        st.experimental_rerun()
-    st.stop()
+        st.stop()
 
 # Stage 3: Skill selection (only one skill, with AI-generated message)
 elif st.session_state.stage == "choose_skill":
@@ -99,15 +87,13 @@ elif st.session_state.stage == "choose_skill":
     if user_input:
         st.session_state.user_info["birth"] = user_input.strip()
         st.session_state.chat_history.append({"role": "user", "content": user_input})
-        # AI-generated message about available skills
         skills_message = llama2_chat([
             {"role": "system", "content": "You are a friendly educational chatbot assistant. Speak English."},
             {"role": "user", "content": "Tell the user that currently only 'Prompt Engineering' is available to learn, and more skills will be added soon. Ask them to confirm if they want to start learning Prompt Engineering."}
         ])
         st.session_state.chat_history.append({"role": "assistant", "content": skills_message})
         st.session_state.stage = "ask_level"
-        st.experimental_rerun()
-    st.stop()
+        st.stop()
 
 # Stage 4: Confirm learning and ask for skill level
 elif st.session_state.stage == "ask_level":
@@ -122,7 +108,7 @@ elif st.session_state.stage == "ask_level":
         ])
         st.session_state.chat_history.append({"role": "assistant", "content": ask})
         st.session_state.stage = "generate_path"
-        st.experimental_rerun()
+        st.stop()
     elif user_input:
         st.session_state.chat_history.append({"role": "user", "content": user_input})
         sorry = llama2_chat([
@@ -131,7 +117,6 @@ elif st.session_state.stage == "ask_level":
         ])
         st.session_state.chat_history.append({"role": "assistant", "content": sorry})
         st.stop()
-    st.stop()
 
 # Stage 5: Generate the learning path using AI
 elif st.session_state.stage == "generate_path":
@@ -140,7 +125,6 @@ elif st.session_state.stage == "generate_path":
     if user_input:
         st.session_state.skill_level = user_input.strip()
         st.session_state.chat_history.append({"role": "user", "content": user_input})
-        # Generate a custom learning path via Llama 2
         prompt = (
             f"You are an AI learning assistant for a student named {st.session_state.user_info['name']} who wants to learn Prompt Engineering. "
             f"Their experience: {st.session_state.skill_level}. Create a plan with 5 units, each with a short title, a learning objective, and a welcome message for the unit. "
@@ -159,10 +143,10 @@ elif st.session_state.stage == "generate_path":
             ])
             msg += f"\n\n{learning_path[0]['welcome']}"
             st.session_state.chat_history.append({"role": "assistant", "content": msg})
-            st.experimental_rerun()
+            st.stop()
         except Exception:
             st.session_state.chat_history.append({"role": "assistant", "content": "An error occurred while generating your learning path. Please try again."})
-    st.stop()
+            st.stop()
 
 # Stage 6: Inside the learning unit (chat)
 elif st.session_state.stage == "in_unit":
@@ -171,13 +155,12 @@ elif st.session_state.stage == "in_unit":
     user_input = st.chat_input("Ask or answer via chat...")
     if user_input:
         st.session_state.chat_history.append({"role": "user", "content": user_input})
-        # AI evaluates the student and determines if they can proceed
         tutor_prompt = [
             {"role": "system", "content": (
                 f"You are a smart tutor. The unit: {unit['title']}. Unit objective: {unit['objective']}."
                 " Evaluate the student's answer and respond. At the end, on a separate line, add: [status:pass] if ready for the next unit, or [status:stay] if not ready."
             )},
-        ] + st.session_state.chat_history[-6:]  # Last 6 messages for context
+        ] + st.session_state.chat_history[-6:]
         reply = llama2_chat(tutor_prompt)
         st.session_state.chat_history.append({"role": "assistant", "content": reply})
         if "[status:pass]" in reply:
@@ -190,17 +173,18 @@ elif st.session_state.stage == "in_unit":
                 ])
                 msg += f"\n\n{next_unit['welcome']}"
                 st.session_state.chat_history.append({"role": "assistant", "content": msg})
+                st.stop()
             else:
                 st.session_state.stage = "path_complete"
                 st.session_state.chat_history.append({"role": "assistant", "content": "🎉 Congratulations! You have completed all units successfully."})
+                st.stop()
         elif "[status:stay]" in reply:
             encourage = llama2_chat([
                 {"role": "system", "content": "You are a friendly educational chatbot assistant. Speak English."},
                 {"role": "user", "content": "Encourage the user to keep working on this unit until they're ready to move on."}
             ])
             st.session_state.chat_history.append({"role": "assistant", "content": encourage})
-        st.experimental_rerun()
-    st.stop()
+            st.stop()
 
 # Stage 7: Path complete
 elif st.session_state.stage == "path_complete":
@@ -209,4 +193,4 @@ elif st.session_state.stage == "path_complete":
     if st.button("Start Over"):
         for k in ("chat_history", "user_info", "selected_skill", "skill_level", "learning_path", "current_unit", "stage"):
             st.session_state[k] = defaults[k]
-        st.experimental_rerun()
+        st.stop()
