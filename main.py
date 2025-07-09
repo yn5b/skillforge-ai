@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+import json
 
 st.set_page_config(page_title="Skilvyn Tutor", layout="wide")
 
@@ -21,47 +22,35 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-def falcon_chat(messages, temperature=0.7, max_tokens=256):
-    HF_TOKEN = st.secrets.get("HF_API_KEY", "")
-    API_URL = "https://api-inference.huggingface.co/models/tiiuae/falcon-7b-instruct"
+def openrouter_chat(messages, temperature=0.7, max_tokens=512):
+    API_KEY = st.secrets.get("OPENROUTER_API_KEY", "")
+    API_URL = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
-        "Authorization": f"Bearer {HF_TOKEN}",
+        "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json"
     }
 
-    # Falcon تفهم التعليمات بشكل جيد على هيئة محادثة بشرية
-    prompt = ""
+    formatted_messages = []
     for msg in messages:
         if msg["role"] == "system":
-            prompt += f"[System] {msg['content']}\n"
+            formatted_messages.append({"role": "system", "content": msg["content"]})
         elif msg["role"] == "user":
-            prompt += f"[User] {msg['content']}\n"
+            formatted_messages.append({"role": "user", "content": msg["content"]})
         elif msg["role"] == "assistant":
-            prompt += f"[Assistant] {msg['content']}\n"
-    prompt += "[Assistant]"
+            formatted_messages.append({"role": "assistant", "content": msg["content"]})
 
     payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": max_tokens,
-            "temperature": temperature,
-            "do_sample": True
-        }
+        "model": "mistralai/mixtral-8x7b-instruct",  # يمكنك تغيير النموذج من قائمة OpenRouter
+        "messages": formatted_messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature
     }
     try:
-        response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=60)
         if response.status_code != 200:
             return None, f"[Connection Error]: Status {response.status_code}: {response.text[:200]}"
-        try:
-            result = response.json()
-        except Exception:
-            return None, f"[Connection Error]: Could not decode JSON. Raw response: {response.text[:200]}"
-        if isinstance(result, dict) and "error" in result:
-            return None, f"[AI Error]: {result['error']}"
-        if isinstance(result, list) and 'generated_text' in result[0]:
-            # Falcon sometimes returns the entire conversation after '[Assistant]'
-            return result[0]['generated_text'].split("[Assistant]")[-1].strip(), ""
-        return str(result), ""
+        result = response.json()
+        return result["choices"][0]["message"]["content"].strip(), ""
     except Exception as e:
         return None, f"[Connection Error]: {e}"
 
@@ -86,7 +75,6 @@ input_placeholder = {
 
 user_input = st.chat_input(input_placeholder)
 
-# Always clear ai_error when there is user input
 if user_input and st.session_state["ai_error"]:
     st.session_state["ai_error"] = ""
 
@@ -101,7 +89,7 @@ if st.session_state.stage == "welcome":
                 "Base your greeting on the latest conversation context."
             )
         }
-        assistant_reply, error = falcon_chat([system_prompt])
+        assistant_reply, error = openrouter_chat([system_prompt])
         if error or assistant_reply is None or not assistant_reply.strip():
             st.session_state["ai_error"] = error or "AI did not return a welcome message. Please check your API key or try again later."
         else:
@@ -119,7 +107,7 @@ if st.session_state.stage == "welcome":
                 "Politely ask for their email address. Address the user by their chosen name if possible."
             )
         }
-        assistant_reply, error = falcon_chat(st.session_state.chat_history + [system_prompt])
+        assistant_reply, error = openrouter_chat(st.session_state.chat_history + [system_prompt])
         if error or assistant_reply is None or not assistant_reply.strip():
             st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
         else:
@@ -137,7 +125,7 @@ elif st.session_state.stage == "ask_info":
                 "Politely ask the user for their date of birth (format: YYYY-MM-DD)."
             )
         }
-        assistant_reply, error = falcon_chat(st.session_state.chat_history + [system_prompt])
+        assistant_reply, error = openrouter_chat(st.session_state.chat_history + [system_prompt])
         if error or assistant_reply is None or not assistant_reply.strip():
             st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
         else:
@@ -156,7 +144,7 @@ elif st.session_state.stage == "choose_skill":
                 "Ask them to confirm if they want to start learning Prompt Engineering."
             )
         }
-        assistant_reply, error = falcon_chat(st.session_state.chat_history + [system_prompt])
+        assistant_reply, error = openrouter_chat(st.session_state.chat_history + [system_prompt])
         if error or assistant_reply is None or not assistant_reply.strip():
             st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
         else:
@@ -176,7 +164,7 @@ elif st.session_state.stage == "ask_level":
                     "(beginner/intermediate/advanced or a short sentence about themselves)."
                 )
             }
-            assistant_reply, error = falcon_chat(st.session_state.chat_history + [system_prompt])
+            assistant_reply, error = openrouter_chat(st.session_state.chat_history + [system_prompt])
             if error or assistant_reply is None or not assistant_reply.strip():
                 st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
             else:
@@ -188,7 +176,7 @@ elif st.session_state.stage == "ask_level":
                 "role": "system",
                 "content": "Thank the user and let them know more skills will be added soon."
             }
-            assistant_reply, error = falcon_chat(st.session_state.chat_history + [sorry_prompt])
+            assistant_reply, error = openrouter_chat(st.session_state.chat_history + [sorry_prompt])
             if error or assistant_reply is None or not assistant_reply.strip():
                 st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
             else:
@@ -209,8 +197,7 @@ elif st.session_state.stage == "generate_path":
                 "Respond with valid JSON: [{\"title\":..., \"objective\":..., \"welcome\":...}, ...]"
             )
         }
-        plan_json, error = falcon_chat(st.session_state.chat_history + [plan_prompt])
-        import json
+        plan_json, error = openrouter_chat(st.session_state.chat_history + [plan_prompt])
         try:
             learning_path = json.loads(plan_json)
             st.session_state.learning_path = learning_path
@@ -224,7 +211,7 @@ elif st.session_state.stage == "generate_path":
                     "Invite them to start learning and chatting."
                 )
             }
-            assistant_reply, error = falcon_chat(st.session_state.chat_history + [unit_prompt])
+            assistant_reply, error = openrouter_chat(st.session_state.chat_history + [unit_prompt])
             if error or assistant_reply is None or not assistant_reply.strip():
                 st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
             else:
@@ -247,7 +234,7 @@ elif st.session_state.stage == "in_unit":
                 "At the end, on a new line, write [status:pass] if the user is ready for the next unit, or [status:stay] if they should stay in this unit."
             )
         }
-        assistant_reply, error = falcon_chat(st.session_state.chat_history + [tutor_prompt])
+        assistant_reply, error = openrouter_chat(st.session_state.chat_history + [tutor_prompt])
         if error or assistant_reply is None or not assistant_reply.strip():
             st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
         else:
@@ -264,7 +251,7 @@ elif st.session_state.stage == "in_unit":
                             f"{next_unit['title']}. {next_unit['welcome']}"
                         )
                     }
-                    assistant_reply, error = falcon_chat(st.session_state.chat_history + [next_unit_prompt])
+                    assistant_reply, error = openrouter_chat(st.session_state.chat_history + [next_unit_prompt])
                     if error or assistant_reply is None or not assistant_reply.strip():
                         st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
                     else:
@@ -276,7 +263,7 @@ elif st.session_state.stage == "in_unit":
                         "role": "system",
                         "content": "Congratulate the user for completing all units."
                     }
-                    assistant_reply, error = falcon_chat(st.session_state.chat_history + [complete_prompt])
+                    assistant_reply, error = openrouter_chat(st.session_state.chat_history + [complete_prompt])
                     if error or assistant_reply is None or not assistant_reply.strip():
                         st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
                     else:
@@ -287,7 +274,7 @@ elif st.session_state.stage == "in_unit":
                     "role": "system",
                     "content": "Encourage the user to keep working on this unit until they're ready to move on."
                 }
-                assistant_reply, error = falcon_chat(st.session_state.chat_history + [encourage_prompt])
+                assistant_reply, error = openrouter_chat(st.session_state.chat_history + [encourage_prompt])
                 if error or assistant_reply is None or not assistant_reply.strip():
                     st.session_state["ai_error"] = error or "AI did not return a reply. Please check your API key or try again later."
                 else:
