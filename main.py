@@ -1,5 +1,5 @@
 import streamlit as st
-import requests  # فقط إذا كان لديك API خارجي لـ Llama2
+import requests  # Only needed if you have an external Llama 2 API endpoint
 
 st.set_page_config(page_title="Skilvyn Tutor", layout="wide")
 
@@ -23,20 +23,20 @@ for k, v in defaults.items():
 # --------- Llama 2 7B API Wrapper ---------
 def llama2_chat(messages, temperature=0.7, max_tokens=256):
     """
-    هذه الدالة يجب أن تتواصل مع نموذج Llama 2 7B الفعلي.
-    أدناه مثال لطريقة الاتصال بـ API وهمي.
-    عدّلها حسب ما يناسب سيرفرك أو استدعاءك الفعلي للنموذج.
-    يجب تمرير الرسائل كاملة (السياق) ليكون التصرف تفاعليا وذكيا.
+    This function should call your actual Llama 2 7B model.
+    Below is a placeholder for an API call.
+    Modify this according to your real server or model invocation.
+    Always pass the full list of messages (context) for a smart, interactive AI experience.
     """
-    # مثال: إذا كان لديك endpoint محلي أو خارجي:
+    # Example: If you have a local or external endpoint:
     # response = requests.post(
     #     "http://localhost:8000/v1/chat/completions",
     #     json={"messages": messages, "temperature": temperature, "max_tokens": max_tokens}
     # )
     # return response.json()["choices"][0]["message"]["content"]
 
-    # إذا لم يكن لديك سيرفر جاهز، يمكنك تجربة huggingface inference API أو أي خدمة متاحة.
-    # الآن، فقط أعطِ رسالة توضيحية للمستخدم:
+    # If you don't have a ready server, you can try the HuggingFace inference API or any available service.
+    # For now, just return a placeholder message for the user:
     return "[!] The AI backend is not yet connected. Please connect Llama 2 API for real responses."
 
 def show_chat():
@@ -50,7 +50,7 @@ def show_chat():
 
 show_chat()
 
-# حدد رسالة الإدخال بحسب المرحلة
+# Set the input placeholder according to the current stage
 input_placeholder = {
     "welcome": "Enter your name or how you'd like to be addressed...",
     "ask_info": "Enter your email address...",
@@ -63,7 +63,7 @@ input_placeholder = {
 
 user_input = st.chat_input(input_placeholder)
 
-# مرحلة الترحيب وطلب الاسم
+# Welcome stage: ask for name
 if st.session_state.stage == "welcome":
     if not st.session_state.chat_history:
         system_prompt = {
@@ -84,7 +84,7 @@ if st.session_state.stage == "welcome":
         st.session_state.stage = "ask_info"
         st.experimental_rerun()
 
-# مرحلة البريد الإلكتروني
+# Email stage
 elif st.session_state.stage == "ask_info":
     if user_input:
         st.session_state.user_info["email"] = user_input.strip()
@@ -98,7 +98,7 @@ elif st.session_state.stage == "ask_info":
         st.session_state.stage = "choose_skill"
         st.experimental_rerun()
 
-# مرحلة تاريخ الميلاد
+# Birth date stage
 elif st.session_state.stage == "choose_skill":
     if user_input:
         st.session_state.user_info["birth"] = user_input.strip()
@@ -112,7 +112,7 @@ elif st.session_state.stage == "choose_skill":
         st.session_state.stage = "ask_level"
         st.experimental_rerun()
 
-# مرحلة التأكيد على المهارة
+# Skill confirmation stage
 elif st.session_state.stage == "ask_level":
     if user_input:
         st.session_state.chat_history.append({"role": "user", "content": user_input})
@@ -136,12 +136,12 @@ elif st.session_state.stage == "ask_level":
             st.session_state.stage = "welcome"
             st.experimental_rerun()
 
-# مرحلة توليد المسار التعليمي
+# Generate learning path stage
 elif st.session_state.stage == "generate_path":
     if user_input:
         st.session_state.skill_level = user_input.strip()
         st.session_state.chat_history.append({"role": "user", "content": user_input})
-        # اطلب من الذكاء الاصطناعي توليد خطة تعلم
+        # Ask the AI to generate a learning plan
         plan_prompt = {
             "role": "system",
             "content": (
@@ -157,7 +157,7 @@ elif st.session_state.stage == "generate_path":
             st.session_state.learning_path = learning_path
             st.session_state.current_unit = 0
             st.session_state.stage = "in_unit"
-            # رسالة الترحيب بالوحدة الأولى
+            # Welcome message for the first unit
             unit = learning_path[0]
             unit_prompt = {
                 "role": "system",
@@ -171,7 +171,7 @@ elif st.session_state.stage == "generate_path":
             st.session_state.stage = "welcome"
             st.experimental_rerun()
 
-# مرحلة الدردشة مع الذكاء الاصطناعي في الوحدة
+# Chat with AI in the unit
 elif st.session_state.stage == "in_unit":
     unit = st.session_state.learning_path[st.session_state.current_unit]
     if user_input:
@@ -216,7 +216,7 @@ elif st.session_state.stage == "in_unit":
             st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
             st.experimental_rerun()
 
-# نهاية المسار
+# Path complete
 elif st.session_state.stage == "path_complete":
     st.success("You have completed the program! You can start over or review your units.")
     if st.button("Start Over"):
