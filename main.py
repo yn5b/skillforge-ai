@@ -148,11 +148,11 @@ def get_cached_css():
 """
 
 def huggingface_chat(messages, temperature=0.7, max_tokens=512):
-    """Chat function using HuggingFace GPT-Neo-2.7B model"""
-    API_URL = "https://api-inference.huggingface.co/models/EleutherAI/gpt-neo-2.7B"
+    """Chat function using HuggingFace DistilGPT-2 model"""
+    API_URL = "https://api-inference.huggingface.co/models/distilgpt2"
     
     # Get API key from secrets
-    API_KEY = st.secrets["HUGGINGFACE_API_KEY"]
+    API_KEY = st.secrets.get("HUGGINGFACE_API_KEY", "")
     if not API_KEY:
         return None, "HuggingFace API key not found. Please add it to your secrets."
     
