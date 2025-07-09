@@ -1,5 +1,5 @@
 import streamlit as st
-import requests  # Only needed if you have an external Llama 2 API endpoint
+import requests
 
 st.set_page_config(page_title="Skilvyn Tutor", layout="wide")
 
@@ -20,24 +20,52 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# --------- Llama 2 7B API Wrapper ---------
-def llama2_chat(messages, temperature=0.7, max_tokens=256):
+# --------- Flan-T5-Small HuggingFace API Wrapper ---------
+def flan_t5_chat(messages, temperature=0.7, max_tokens=256):
     """
-    This function should call your actual Llama 2 7B model.
-    Below is a placeholder for an API call.
-    Modify this according to your real server or model invocation.
-    Always pass the full list of messages (context) for a smart, interactive AI experience.
+    Calls Google Flan-T5-Small on HuggingFace Inference API to generate a reply.
+    Uses the chat history and current system prompt for context.
     """
-    # Example: If you have a local or external endpoint:
-    # response = requests.post(
-    #     "http://localhost:8000/v1/chat/completions",
-    #     json={"messages": messages, "temperature": temperature, "max_tokens": max_tokens}
-    # )
-    # return response.json()["choices"][0]["message"]["content"]
+    HF_TOKEN = st.secrets["HF_API_KEY"]
+    API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-small"
+    headers = {
+        "Authorization": f"Bearer {HF_TOKEN}",
+        "Content-Type": "application/json"
+    }
 
-    # If you don't have a ready server, you can try the HuggingFace inference API or any available service.
-    # For now, just return a placeholder message for the user:
-    return "[!] The AI backend is not yet connected. Please connect Llama 2 API for real responses."
+    # Compose the prompt from the chat history
+    prompt = ""
+    for msg in messages:
+        if msg["role"] == "system":
+            prompt += f"Instruction: {msg['content']}\n"
+        elif msg["role"] == "user":
+            prompt += f"User: {msg['content']}\n"
+        elif msg["role"] == "assistant":
+            prompt += f"Assistant: {msg['content']}\n"
+    prompt += "Assistant:"
+
+    # API call
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "max_new_tokens": max_tokens,
+            "temperature": temperature,
+            "do_sample": True
+        }
+    }
+    try:
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=25)
+        result = response.json()
+        if isinstance(result, list) and 'generated_text' in result[0]:
+            return result[0]['generated_text'].split("Assistant:")[-1].strip()
+        elif isinstance(result, dict) and "error" in result:
+            return "[AI Error]: " + result["error"]
+        elif isinstance(result, list) and 'generated_text' in result[0]:
+            return result[0]['generated_text']
+        else:
+            return str(result)
+    except Exception as e:
+        return f"[Connection Error]: {e}"
 
 def show_chat():
     for msg in st.session_state.chat_history:
@@ -50,7 +78,6 @@ def show_chat():
 
 show_chat()
 
-# Set the input placeholder according to the current stage
 input_placeholder = {
     "welcome": "Enter your name or how you'd like to be addressed...",
     "ask_info": "Enter your email address...",
@@ -63,14 +90,13 @@ input_placeholder = {
 
 user_input = st.chat_input(input_placeholder)
 
-# Welcome stage: ask for name
 if st.session_state.stage == "welcome":
     if not st.session_state.chat_history:
         system_prompt = {
             "role": "system",
             "content": "You are a friendly AI learning assistant. Greet the user, introduce Skilvyn as an interactive AI-powered learning platform which generates everything via AI, and ask for the user's name or how they want to be addressed."
         }
-        assistant_reply = llama2_chat([system_prompt])
+        assistant_reply = flan_t5_chat([system_prompt])
         st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
     if user_input:
         st.session_state.user_info["name"] = user_input.strip()
@@ -79,12 +105,11 @@ if st.session_state.stage == "welcome":
             "role": "system",
             "content": f"You are a friendly AI learning assistant. The user said their name is {user_input}. Politely ask them for their email address."
         }
-        assistant_reply = llama2_chat(st.session_state.chat_history + [system_prompt])
+        assistant_reply = flan_t5_chat(st.session_state.chat_history + [system_prompt])
         st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
         st.session_state.stage = "ask_info"
         st.experimental_rerun()
 
-# Email stage
 elif st.session_state.stage == "ask_info":
     if user_input:
         st.session_state.user_info["email"] = user_input.strip()
@@ -93,12 +118,11 @@ elif st.session_state.stage == "ask_info":
             "role": "system",
             "content": "Politely ask the user for their date of birth (format: YYYY-MM-DD)."
         }
-        assistant_reply = llama2_chat(st.session_state.chat_history + [system_prompt])
+        assistant_reply = flan_t5_chat(st.session_state.chat_history + [system_prompt])
         st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
         st.session_state.stage = "choose_skill"
         st.experimental_rerun()
 
-# Birth date stage
 elif st.session_state.stage == "choose_skill":
     if user_input:
         st.session_state.user_info["birth"] = user_input.strip()
@@ -107,12 +131,11 @@ elif st.session_state.stage == "choose_skill":
             "role": "system",
             "content": "Tell the user that currently only 'Prompt Engineering' is available to learn, and more skills will be added soon. Ask them to confirm if they want to start learning Prompt Engineering."
         }
-        assistant_reply = llama2_chat(st.session_state.chat_history + [system_prompt])
+        assistant_reply = flan_t5_chat(st.session_state.chat_history + [system_prompt])
         st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
         st.session_state.stage = "ask_level"
         st.experimental_rerun()
 
-# Skill confirmation stage
 elif st.session_state.stage == "ask_level":
     if user_input:
         st.session_state.chat_history.append({"role": "user", "content": user_input})
@@ -122,7 +145,7 @@ elif st.session_state.stage == "ask_level":
                 "role": "system",
                 "content": "Ask the user to briefly describe their current experience level in Prompt Engineering (beginner/intermediate/advanced or a short sentence about themselves)."
             }
-            assistant_reply = llama2_chat(st.session_state.chat_history + [system_prompt])
+            assistant_reply = flan_t5_chat(st.session_state.chat_history + [system_prompt])
             st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
             st.session_state.stage = "generate_path"
             st.experimental_rerun()
@@ -131,17 +154,15 @@ elif st.session_state.stage == "ask_level":
                 "role": "system",
                 "content": "Thank the user and let them know more skills will be added soon."
             }
-            assistant_reply = llama2_chat(st.session_state.chat_history + [sorry_prompt])
+            assistant_reply = flan_t5_chat(st.session_state.chat_history + [sorry_prompt])
             st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
             st.session_state.stage = "welcome"
             st.experimental_rerun()
 
-# Generate learning path stage
 elif st.session_state.stage == "generate_path":
     if user_input:
         st.session_state.skill_level = user_input.strip()
         st.session_state.chat_history.append({"role": "user", "content": user_input})
-        # Ask the AI to generate a learning plan
         plan_prompt = {
             "role": "system",
             "content": (
@@ -150,20 +171,19 @@ elif st.session_state.stage == "generate_path":
                 "The plan should have 5 units. For each unit, provide a short title, a learning objective, and a welcome message. Respond with valid JSON: [{\"title\":..., \"objective\":..., \"welcome\":...}, ...]"
             )
         }
-        plan_json = llama2_chat(st.session_state.chat_history + [plan_prompt])
+        plan_json = flan_t5_chat(st.session_state.chat_history + [plan_prompt])
         import json
         try:
             learning_path = json.loads(plan_json)
             st.session_state.learning_path = learning_path
             st.session_state.current_unit = 0
             st.session_state.stage = "in_unit"
-            # Welcome message for the first unit
             unit = learning_path[0]
             unit_prompt = {
                 "role": "system",
                 "content": f"Welcome the user to the first unit: {unit['title']}. {unit['welcome']} Invite them to start learning and chatting."
             }
-            assistant_reply = llama2_chat(st.session_state.chat_history + [unit_prompt])
+            assistant_reply = flan_t5_chat(st.session_state.chat_history + [unit_prompt])
             st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
             st.experimental_rerun()
         except Exception:
@@ -171,7 +191,6 @@ elif st.session_state.stage == "generate_path":
             st.session_state.stage = "welcome"
             st.experimental_rerun()
 
-# Chat with AI in the unit
 elif st.session_state.stage == "in_unit":
     unit = st.session_state.learning_path[st.session_state.current_unit]
     if user_input:
@@ -184,7 +203,7 @@ elif st.session_state.stage == "in_unit":
                 "At the end, on a new line, write [status:pass] if the user is ready for the next unit, or [status:stay] if they should stay in this unit."
             )
         }
-        assistant_reply = llama2_chat(st.session_state.chat_history + [tutor_prompt])
+        assistant_reply = flan_t5_chat(st.session_state.chat_history + [tutor_prompt])
         st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
 
         if "[status:pass]" in assistant_reply:
@@ -195,7 +214,7 @@ elif st.session_state.stage == "in_unit":
                     "role": "system",
                     "content": f"Congratulate the user for completing the previous unit and welcome them to the next unit: {next_unit['title']}. {next_unit['welcome']}"
                 }
-                assistant_reply = llama2_chat(st.session_state.chat_history + [next_unit_prompt])
+                assistant_reply = flan_t5_chat(st.session_state.chat_history + [next_unit_prompt])
                 st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
                 st.experimental_rerun()
             else:
@@ -204,7 +223,7 @@ elif st.session_state.stage == "in_unit":
                     "role": "system",
                     "content": "Congratulate the user for completing all units."
                 }
-                assistant_reply = llama2_chat(st.session_state.chat_history + [complete_prompt])
+                assistant_reply = flan_t5_chat(st.session_state.chat_history + [complete_prompt])
                 st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
                 st.experimental_rerun()
         elif "[status:stay]" in assistant_reply:
@@ -212,11 +231,10 @@ elif st.session_state.stage == "in_unit":
                 "role": "system",
                 "content": "Encourage the user to keep working on this unit until they're ready to move on."
             }
-            assistant_reply = llama2_chat(st.session_state.chat_history + [encourage_prompt])
+            assistant_reply = flan_t5_chat(st.session_state.chat_history + [encourage_prompt])
             st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
             st.experimental_rerun()
 
-# Path complete
 elif st.session_state.stage == "path_complete":
     st.success("You have completed the program! You can start over or review your units.")
     if st.button("Start Over"):
