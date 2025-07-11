@@ -1,4 +1,3 @@
-
 import streamlit as st
 import requests
 import json
@@ -150,11 +149,11 @@ def get_cached_css():
 def huggingface_chat(messages, temperature=0.7, max_tokens=512):
     """Chat function using HuggingFace DistilGPT-2 model"""
     API_URL = "https://api-inference.huggingface.co/models/distilgpt2"
-    
+
     # Validate messages format
     if not isinstance(messages, list):
         return None, "Error: messages must be a list"
-    
+
     for i, msg in enumerate(messages):
         if not isinstance(msg, dict):
             return None, f"Error: message {i} is not a dictionary"
@@ -162,17 +161,17 @@ def huggingface_chat(messages, temperature=0.7, max_tokens=512):
             return None, f"Error: message {i} missing 'role' or 'content'"
         if msg["role"] not in ["system", "user", "assistant"]:
             return None, f"Error: message {i} has invalid role: {msg['role']}"
-    
+
     # Get API key from secrets
     API_KEY = st.secrets.get("HUGGINGFACE_API_KEY", "")
     if not API_KEY:
         return None, "HuggingFace API key not found. Please add it to your secrets."
-    
+
     headers = {
         "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json"
     }
-    
+
     # Format conversation for the model
     conversation = ""
     for msg in messages:
@@ -182,9 +181,9 @@ def huggingface_chat(messages, temperature=0.7, max_tokens=512):
             conversation += f"Human: {msg['content']}\n"
         elif msg["role"] == "assistant":
             conversation += f"Assistant: {msg['content']}\n"
-    
+
     conversation += "Assistant:"
-    
+
     payload = {
         "inputs": conversation,
         "parameters": {
@@ -194,18 +193,18 @@ def huggingface_chat(messages, temperature=0.7, max_tokens=512):
             "return_full_text": False
         }
     }
-    
+
     try:
         response = requests.post(API_URL, headers=headers, json=payload, timeout=60)
-        
+
         if response.status_code == 503:
             return None, "Model is loading. Please wait a moment and try again."
-        
+
         if response.status_code != 200:
             return None, f"API Error: Status {response.status_code}: {response.text[:200]}"
-            
+
         result = response.json()
-        
+
         if isinstance(result, list) and len(result) > 0:
             generated_text = result[0].get("generated_text", "").strip()
             # Clean up the response
@@ -213,16 +212,16 @@ def huggingface_chat(messages, temperature=0.7, max_tokens=512):
             return generated_text, ""
         else:
             return None, "Invalid response format from API"
-            
+
     except requests.exceptions.RequestException as e:
         error_msg = f"Request Error: {str(e)}"
-        
+
         # Print detailed error information
         if hasattr(e, 'response') and e.response is not None:
             print(f"HTTP Status: {e.response.status_code}")
             print(f"HTTP Body: {e.response.text}")
             error_msg += f" | Status: {e.response.status_code} | Body: {e.response.text[:200]}"
-        
+
         return None, error_msg
     except Exception as e:
         print(f"General Exception: {str(e)}")
@@ -237,7 +236,7 @@ def show_learning_path():
     """Display the learning path progress"""
     if st.session_state.learning_path and st.session_state.stage in ["in_unit", "path_complete"]:
         progress = (st.session_state.current_unit / len(st.session_state.learning_path)) * 100
-        
+
         st.markdown(f"""
         <div class="learning-path">
             <h3>📚 Your Learning Journey - {st.session_state.selected_skill}</h3>
@@ -247,7 +246,7 @@ def show_learning_path():
             <p>Progress: {st.session_state.current_unit}/{len(st.session_state.learning_path)} units completed</p>
         </div>
         """, unsafe_allow_html=True)
-        
+
         # Show units
         for i, unit in enumerate(st.session_state.learning_path):
             if i < st.session_state.current_unit:
@@ -259,7 +258,7 @@ def show_learning_path():
             else:
                 status = "locked"
                 icon = "🔒"
-            
+
             st.markdown(f"""
             <div class="unit-card">
                 <span class="status-indicator {status}"></span>
@@ -292,29 +291,29 @@ def generate_ai_response(system_content, user_input=None):
     """Generate AI response with error handling and performance monitoring"""
     if not check_message_limit():
         return None, "Message limit reached"
-    
+
     start_time = time.time()
-    
+
     messages = st.session_state.chat_history.copy()
     if user_input:
         messages.append({"role": "user", "content": user_input})
-    
+
     system_msg = {"role": "system", "content": system_content}
     messages.append(system_msg)
-    
-    response, error = huggingface_chat(messages)
-    
+
+    response, error = local_chat(messages)
+
     if response:
         st.session_state.messages_count += 1
         # Trim history after successful response
         trim_chat_history()
-    
+
     # Performance monitoring
     end_time = time.time()
     response_time = end_time - start_time
     if response_time > 5:  # Log slow responses
         st.toast(f"⚠️ Response took {response_time:.2f}s", icon="⏰")
-        
+
     return response, error
 
 # Load custom CSS
@@ -350,7 +349,7 @@ user_input = st.chat_input(input_placeholders.get(st.session_state.stage, "Write
 
 # Handle user input based on current stage
 if user_input and st.session_state.stage != "path_complete":
-    
+
     # Welcome stage
     if st.session_state.stage == "welcome":
         if not st.session_state.chat_history:
@@ -358,20 +357,20 @@ if user_input and st.session_state.stage != "path_complete":
             welcome_content = """You are a friendly and warm AI learning assistant for the 'Skilvyn' platform. 
             Welcome the user warmly, introduce Skilvyn as an interactive learning platform powered by AI. 
             Ask them what name they'd like to be called. Be friendly and encouraging."""
-            
+
             response, error = generate_ai_response(welcome_content)
             if response:
                 st.session_state.chat_history.append({"role": "assistant", "content": response})
             elif error:
                 st.session_state.ai_error = error
-        
+
         if user_input:
             st.session_state.user_info["name"] = user_input.strip()
             st.session_state.chat_history.append({"role": "user", "content": user_input})
-            
+
             ask_email_content = f"""The user said their name is '{user_input}'. 
             Thank them warmly and ask for their email address. Use their name in the conversation."""
-            
+
             response, error = generate_ai_response(ask_email_content)
             if response:
                 st.session_state.chat_history.append({"role": "assistant", "content": response})
@@ -379,14 +378,14 @@ if user_input and st.session_state.stage != "path_complete":
             elif error:
                 st.session_state.ai_error = error
             st.rerun()
-    
+
     # Ask for email
     elif st.session_state.stage == "ask_info":
         st.session_state.user_info["email"] = user_input.strip()
         st.session_state.chat_history.append({"role": "user", "content": user_input})
-        
+
         ask_birth_content = "Ask the user warmly for their birth date in the format (YYYY-MM-DD)."
-        
+
         response, error = generate_ai_response(ask_birth_content)
         if response:
             st.session_state.chat_history.append({"role": "assistant", "content": response})
@@ -394,15 +393,15 @@ if user_input and st.session_state.stage != "path_complete":
         elif error:
             st.session_state.ai_error = error
         st.rerun()
-    
+
     # Ask for date of birth
     elif st.session_state.stage == "choose_skill":
         st.session_state.user_info["birth"] = user_input.strip()
         st.session_state.chat_history.append({"role": "user", "content": user_input})
-        
+
         skill_content = """Tell the user that 'Prompt Engineering' is the only skill available currently, 
         and that other skills will be added soon. Ask them if they want to start learning prompt engineering."""
-        
+
         response, error = generate_ai_response(skill_content)
         if response:
             st.session_state.chat_history.append({"role": "assistant", "content": response})
@@ -410,17 +409,17 @@ if user_input and st.session_state.stage != "path_complete":
         elif error:
             st.session_state.ai_error = error
         st.rerun()
-    
+
     # Confirm skill selection
     elif st.session_state.stage == "ask_level":
         st.session_state.chat_history.append({"role": "user", "content": user_input})
-        
+
         if any(word in user_input.lower() for word in ["yes", "sure", "okay", "want", "would like"]):
             st.session_state.selected_skill = "Prompt Engineering"
-            
+
             level_content = """Ask the user to describe their current experience level in prompt engineering 
             (beginner/intermediate/advanced or a short sentence about themselves)."""
-            
+
             response, error = generate_ai_response(level_content)
             if response:
                 st.session_state.chat_history.append({"role": "assistant", "content": response})
@@ -436,53 +435,53 @@ if user_input and st.session_state.stage != "path_complete":
             elif error:
                 st.session_state.ai_error = error
         st.rerun()
-    
+
     # Generate learning path
     elif st.session_state.stage == "generate_path":
         st.session_state.skill_level = user_input.strip()
         st.session_state.chat_history.append({"role": "user", "content": user_input})
-        
+
         # Create a predefined learning path (cached)
         learning_path = get_cached_learning_path()
-        
+
         st.session_state.learning_path = learning_path
         st.session_state.current_unit = 0
         st.session_state.stage = "in_unit"
-        
+
         unit = learning_path[0]
         unit_content = f"""Welcome the user to the first unit: {unit['title']}. 
         {unit['welcome']} Invite them to start learning and chatting."""
-        
+
         response, error = generate_ai_response(unit_content)
         if response:
             st.session_state.chat_history.append({"role": "assistant", "content": response})
         elif error:
             st.session_state.ai_error = error
         st.rerun()
-    
+
     # In unit learning
     elif st.session_state.stage == "in_unit":
         unit = st.session_state.learning_path[st.session_state.current_unit]
         st.session_state.chat_history.append({"role": "user", "content": user_input})
-        
+
         tutor_content = f"""You are a specialized AI tutor. This is the unit: {unit['title']}. 
         Objective: {unit['objective']}. Answer the user's question or continue the lesson interactively. 
         At the end of your response, on a new line, write [status:pass] if the user is ready for the next unit, 
         or [status:stay] if they should remain in this unit."""
-        
+
         response, error = generate_ai_response(tutor_content, user_input)
         if response:
             st.session_state.chat_history.append({"role": "assistant", "content": response})
-            
+
             # Check for progression
             if "[status:pass]" in response:
                 if st.session_state.current_unit + 1 < len(st.session_state.learning_path):
                     st.session_state.current_unit += 1
                     next_unit = st.session_state.learning_path[st.session_state.current_unit]
-                    
+
                     next_content = f"""Congratulate the user for completing the previous unit and welcome them to the next unit: 
                     {next_unit['title']}. {next_unit['welcome']}"""
-                    
+
                     next_response, next_error = generate_ai_response(next_content)
                     if next_response:
                         st.session_state.chat_history.append({"role": "assistant", "content": next_response})
@@ -522,14 +521,55 @@ if st.session_state.user_info:
             st.write(f"**Email:** {st.session_state.user_info['email']}")
         if st.session_state.selected_skill:
             st.write(f"**Selected Skill:** {st.session_state.selected_skill}")
-        
+
         st.write(f"**Messages Used:** {st.session_state.messages_count}/{st.session_state.max_free_messages}")
-        
+
         # Performance info
         st.subheader("📊 Performance")
         st.write(f"**History Size:** {len(st.session_state.chat_history)}/{st.session_state.max_history_size}")
-        
+
         # Clear history button for testing
         if st.button("🧹 Clear Old History"):
             trim_chat_history()
             st.success("History trimmed!")
+```
+
+```python
+def generate_ai_response(system_content, user_input=None):
+    """Generate AI response with error handling and performance monitoring"""
+    if not check_message_limit():
+        return None, "Message limit reached"
+
+    start_time = time.time()
+
+    messages = st.session_state.chat_history.copy()
+    if user_input:
+        messages.append({"role": "user", "content": user_input})
+
+    system_msg = {"role": "system", "content": system_content}
+    messages.append(system_msg)
+
+    response, error = local_chat(messages)
+
+    if response:
+        st.session_state.messages_count += 1
+        # Trim history after successful response
+        trim_chat_history()
+
+    # Performance monitoring
+    end_time = time.time()
+    response_time = end_time - start_time
+    if response_time > 5:  # Log slow responses
+        st.toast(f"⚠️ Response took {response_time:.2f}s", icon="⏰")
+
+    return response, error
+```
+
+Replacing
+```
+response, error = huggingface_chat(messages, user_input)
+```
+with
+```
+response, error = local_chat(messages)
+```
