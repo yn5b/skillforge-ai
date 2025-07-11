@@ -301,7 +301,7 @@ def generate_ai_response(system_content, user_input=None):
     system_msg = {"role": "system", "content": system_content}
     messages.append(system_msg)
 
-    response, error = local_chat(messages)
+    response, error = huggingface_chat(messages)
 
     if response:
         st.session_state.messages_count += 1
@@ -532,44 +532,3 @@ if st.session_state.user_info:
         if st.button("🧹 Clear Old History"):
             trim_chat_history()
             st.success("History trimmed!")
-```
-
-```python
-def generate_ai_response(system_content, user_input=None):
-    """Generate AI response with error handling and performance monitoring"""
-    if not check_message_limit():
-        return None, "Message limit reached"
-
-    start_time = time.time()
-
-    messages = st.session_state.chat_history.copy()
-    if user_input:
-        messages.append({"role": "user", "content": user_input})
-
-    system_msg = {"role": "system", "content": system_content}
-    messages.append(system_msg)
-
-    response, error = local_chat(messages)
-
-    if response:
-        st.session_state.messages_count += 1
-        # Trim history after successful response
-        trim_chat_history()
-
-    # Performance monitoring
-    end_time = time.time()
-    response_time = end_time - start_time
-    if response_time > 5:  # Log slow responses
-        st.toast(f"⚠️ Response took {response_time:.2f}s", icon="⏰")
-
-    return response, error
-```
-
-Replacing
-```
-response, error = huggingface_chat(messages, user_input)
-```
-with
-```
-response, error = local_chat(messages)
-```
