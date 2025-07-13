@@ -1,3 +1,9 @@
+# Make sure to set your Hugging Face API key in secrets.toml
+# For example:
+# [general]
+# HUGGINGFACE_API_KEY = "your_api_key_here"
+# You can obtain an API key from https://huggingface.co/settings/tokens
+
 import streamlit as st
 import requests
 import json
@@ -12,25 +18,23 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# CSS will be loaded after function definition
-
 # Available skills
 SKILLS = ["Prompt Engineering"]
 
-# Initialize session state
+# Initialize session state for managing user data and app state
 defaults = {
-    "chat_history": [],
-    "user_info": {},
-    "skills": SKILLS,
-    "selected_skill": None,
-    "skill_level": None,
-    "learning_path": [],
-    "current_unit": 0,
-    "stage": "welcome",
-    "ai_error": "",
-    "messages_count": 0,
-    "max_free_messages": 50,
-    "max_history_size": 20  # Limit chat history to last 20 messages
+    "chat_history": [],  # Stores conversation history
+    "user_info": {},     # Stores user personal information
+    "skills": SKILLS,    # Available skills
+    "selected_skill": None,  # Currently selected skill
+    "skill_level": None,    # User's experience level
+    "learning_path": [],    # Learning path units
+    "current_unit": 0,      # Current unit index
+    "stage": "welcome",     # Current stage of the app
+    "ai_error": "",         # Stores API errors
+    "messages_count": 0,    # Tracks number of AI messages
+    "max_free_messages": 50,  # Free message limit
+    "max_history_size": 20    # Max chat history size
 }
 
 for k, v in defaults.items():
@@ -40,6 +44,7 @@ for k, v in defaults.items():
 # Cache learning path to avoid recreating
 @st.cache_data
 def get_cached_learning_path():
+    """Returns a predefined learning path for Prompt Engineering"""
     return [
         {
             "title": "Introduction to Prompt Engineering",
@@ -71,6 +76,7 @@ def get_cached_learning_path():
 # Cache CSS to avoid reloading
 @st.cache_data
 def get_cached_css():
+    """Returns CSS styles for the app"""
     return """
 <style>
     .main-header {
@@ -215,16 +221,10 @@ def huggingface_chat(messages, temperature=0.7, max_tokens=512):
 
     except requests.exceptions.RequestException as e:
         error_msg = f"Request Error: {str(e)}"
-
-        # Print detailed error information
         if hasattr(e, 'response') and e.response is not None:
-            print(f"HTTP Status: {e.response.status_code}")
-            print(f"HTTP Body: {e.response.text}")
             error_msg += f" | Status: {e.response.status_code} | Body: {e.response.text[:200]}"
-
         return None, error_msg
     except Exception as e:
-        print(f"General Exception: {str(e)}")
         return None, f"Connection Error: {str(e)}"
 
 def show_header():
@@ -298,6 +298,10 @@ def generate_ai_response(system_content, user_input=None):
     if user_input:
         messages.append({"role": "user", "content": user_input})
 
+    # Add user name to system content for personalization if available
+    if "name" in st.session_state.user_info:
+        system_content = f"{system_content} The user's name is {st.session_state.user_info['name']}. Use their name in the conversation."
+
     system_msg = {"role": "system", "content": system_content}
     messages.append(system_msg)
 
@@ -305,13 +309,12 @@ def generate_ai_response(system_content, user_input=None):
 
     if response:
         st.session_state.messages_count += 1
-        # Trim history after successful response
         trim_chat_history()
 
     # Performance monitoring
     end_time = time.time()
     response_time = end_time - start_time
-    if response_time > 5:  # Log slow responses
+    if response_time > 5:
         st.toast(f"⚠️ Response took {response_time:.2f}s", icon="⏰")
 
     return response, error
@@ -336,16 +339,16 @@ if st.session_state.messages_count > 0:
 
 # Input placeholders based on stage
 input_placeholders = {
-    "welcome": "Enter your name or what you'd like me to call you...",
-    "ask_info": "Enter your email address...",
-    "choose_skill": "Enter your birth date (example: 1990-01-01)...",
-    "ask_level": "Do you want to learn prompt engineering? (yes/no)...",
-    "generate_path": "Describe your current experience in this field...",
-    "in_unit": "Ask or answer through chat...",
+    "welcome": "أدخل اسمك أو الاسم الذي تريد مني مناداتك به...",
+    "ask_info": "أدخل عنوان بريدك الإلكتروني...",
+    "choose_skill": "أدخل تاريخ ميلادك (مثال: 1990-01-01)...",
+    "ask_level": "هل تريد تعلم هندسة الأوامر؟ (نعم/لا)...",
+    "generate_path": "صف خبرتك الحالية في هذا المجال...",
+    "in_unit": "اسأل أو أجب من خلال الدردشة...",
     "path_complete": ""
 }
 
-user_input = st.chat_input(input_placeholders.get(st.session_state.stage, "Write your message here..."))
+user_input = st.chat_input(input_placeholders.get(st.session_state.stage, "اكتب رسالتك هنا..."))
 
 # Handle user input based on current stage
 if user_input and st.session_state.stage != "path_complete":
@@ -353,7 +356,6 @@ if user_input and st.session_state.stage != "path_complete":
     # Welcome stage
     if st.session_state.stage == "welcome":
         if not st.session_state.chat_history:
-            # Initial welcome message
             welcome_content = """You are a friendly and warm AI learning assistant for the 'Skilvyn' platform. 
             Welcome the user warmly, introduce Skilvyn as an interactive learning platform powered by AI. 
             Ask them what name they'd like to be called. Be friendly and encouraging."""
@@ -369,7 +371,7 @@ if user_input and st.session_state.stage != "path_complete":
             st.session_state.chat_history.append({"role": "user", "content": user_input})
 
             ask_email_content = f"""The user said their name is '{user_input}'. 
-            Thank them warmly and ask for their email address. Use their name in the conversation."""
+            Thank them warmly and ask for their email address."""
 
             response, error = generate_ai_response(ask_email_content)
             if response:
@@ -441,9 +443,7 @@ if user_input and st.session_state.stage != "path_complete":
         st.session_state.skill_level = user_input.strip()
         st.session_state.chat_history.append({"role": "user", "content": user_input})
 
-        # Create a predefined learning path (cached)
         learning_path = get_cached_learning_path()
-
         st.session_state.learning_path = learning_path
         st.session_state.current_unit = 0
         st.session_state.stage = "in_unit"
@@ -473,7 +473,6 @@ if user_input and st.session_state.stage != "path_complete":
         if response:
             st.session_state.chat_history.append({"role": "assistant", "content": response})
 
-            # Check for progression
             if "[status:pass]" in response:
                 if st.session_state.current_unit + 1 < len(st.session_state.learning_path):
                     st.session_state.current_unit += 1
@@ -497,8 +496,8 @@ if user_input and st.session_state.stage != "path_complete":
 
 # Path complete stage
 elif st.session_state.stage == "path_complete":
-    st.success("🎉 Congratulations! You've successfully completed the program!")
-    if st.button("🔄 Start Again"):
+    st.success("🎉 تهانينا! لقد أكملت البرنامج بنجاح!")
+    if st.button("🔄 ابدأ من جديد"):
         for k in ["chat_history", "user_info", "selected_skill", "skill_level", 
                   "learning_path", "current_unit", "stage", "ai_error", "messages_count"]:
             st.session_state[k] = defaults[k]
@@ -507,28 +506,26 @@ elif st.session_state.stage == "path_complete":
 # Display errors if any
 if st.session_state.get("ai_error"):
     st.error(st.session_state.ai_error)
-    if st.button("Try Again"):
+    if st.button("حاول مرة أخرى"):
         st.session_state.ai_error = ""
         st.rerun()
 
 # Sidebar with user info
 if st.session_state.user_info:
     with st.sidebar:
-        st.header("👤 User Information")
+        st.header("👤 معلومات المستخدم")
         if "name" in st.session_state.user_info:
-            st.write(f"**Name:** {st.session_state.user_info['name']}")
+            st.write(f"**الاسم:** {st.session_state.user_info['name']}")
         if "email" in st.session_state.user_info:
-            st.write(f"**Email:** {st.session_state.user_info['email']}")
+            st.write(f"**البريد الإلكتروني:** {st.session_state.user_info['email']}")
         if st.session_state.selected_skill:
-            st.write(f"**Selected Skill:** {st.session_state.selected_skill}")
+            st.write(f"**المهارة المختارة:** {st.session_state.selected_skill}")
 
-        st.write(f"**Messages Used:** {st.session_state.messages_count}/{st.session_state.max_free_messages}")
+        st.write(f"**الرسائل المستخدمة:** {st.session_state.messages_count}/{st.session_state.max_free_messages}")
 
-        # Performance info
-        st.subheader("📊 Performance")
-        st.write(f"**History Size:** {len(st.session_state.chat_history)}/{st.session_state.max_history_size}")
+        st.subheader("📊 الأداء")
+        st.write(f"**حجم السجل:** {len(st.session_state.chat_history)}/{st.session_state.max_history_size}")
 
-        # Clear history button for testing
-        if st.button("🧹 Clear Old History"):
+        if st.button("🧹 مسح السجل القديم"):
             trim_chat_history()
-            st.success("History trimmed!")
+            st.success("تم تهيئة السجل!")
