@@ -250,11 +250,11 @@ with st.container():
 # Message limit indicator
 if st.session_state.messages_count > 0:
     remaining = st.session_state.max_free_messages - st.session_state.messages_count
- st.caption(f"Free messages remaining: {remaining}")
+    st.caption(f"Free messages remaining: {remaining}")
 
 # Input placeholders based on stage
 input_placeholders = {
-    "welcome": "Enter your name or what you'd like me to call you...",
+    "welcome": "Enter wiser name or what you'd like me to call you...",
     "ask_info": "Enter your email address...",
     "choose_skill": "Enter your birth date (example: 1990-01-01)...",
     "ask_level": "Do you want to learn prompt engineering? (yes/no)...",
